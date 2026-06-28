@@ -1,13 +1,13 @@
 import './index.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/GeneralLayout';
+import Painel from './layouts/Painel'
 
-const Painel = () => <h1 className="text-3xl font-bold">Painel</h1>;
-const Calendario = () => <h1 className="text-3xl font-bold">Calendário</h1>;
-const Clientes = () => <h1 className="text-3xl font-bold">Gerenciar Clientes</h1>;
-const Servicos = () => <h1 className="text-3xl font-bold">Serviços Oferecidos</h1>;
-const Relatorios = () => <h1 className="text-3xl font-bold">Relatórios do Sistema</h1>;
-const Configuracoes = () => <h1 className="text-3xl font-bold">Configurações</h1>;
+const Calendario = () => <h2 className="text-3xl font-bold">Calendário</h2>;
+const Clientes = () => <h2 className="text-3xl font-bold">Gerenciar Clientes</h2>;
+const Servicos = () => <h2 className="text-3xl font-bold">Serviços Oferecidos</h2>;
+const Relatorios = () => <h2 className="text-3xl font-bold">Relatórios do Sistema</h2>;
+const Configuracoes = () => <h2 className="text-3xl font-bold">Configurações</h2>;
 
 export default function App() {
   return (

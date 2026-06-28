@@ -52,7 +52,7 @@ const SidebarItem = ({ to, icon: Icon, children }) => {
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-[#6ab0c1] h-screen flex flex-col shadow-lg">
+    <aside className="w-64 bg-(--principal) h-screen flex flex-col shadow-lg">
       
       <div className="flex items-center justify-center mb-12 mt-4">
         <h1 className="text-white text-3xl font-bold tracking-wide">
