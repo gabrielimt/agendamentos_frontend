@@ -15,6 +15,52 @@ export default function Calendary() {
   // Estado reservado para os dados da sua API
   const [appointments, setAppointments] = useState([]); 
 
+  // --- NOVOS ESTADOS PARA O FORMULÁRIO ---
+  const [patientName, setPatientName] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [service, setService] = useState('');
+  const [notes, setNotes] = useState('');
+
+  // --- FUNÇÃO PARA SALVAR NO BANCO ---
+  const handleSalvarAgendamento = async (e) => {
+    e.preventDefault(); // Evita que a página recarregue
+
+    const dadosParaEnvio = {
+      patientName,
+      date,
+      time,
+      service,
+      notes
+    };
+
+    try {
+      const resposta = await fetch('http://localhost:8000/api/calendario/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dadosParaEnvio)
+      });
+
+      if (resposta.ok) {
+        alert("Agendamento salvo com sucesso no banco do Django!");
+        setIsModalOpen(false); // Fecha o modal
+        
+        // Limpa os campos para o próximo cadastro
+        setPatientName('');
+        setDate('');
+        setTime('');
+        setService('');
+        setNotes('');
+      } else {
+        alert("Erro ao salvar o agendamento na API.");
+      }
+    } catch (erro) {
+      console.error("Erro de conexão com o backend:", erro);
+    }
+  };
+
   // --- LÓGICA DE NAVEGAÇÃO ---
   const handlePrev = () => {
     if (currentView === 'Mês') setCurrentDate(subMonths(currentDate, 1));
@@ -245,17 +291,13 @@ export default function Calendary() {
               </button>
             </div>
             
-            <form 
-              className="flex flex-col gap-4" 
-              onSubmit={(e) => { 
-                e.preventDefault(); 
-                setIsModalOpen(false); 
-              }}
-            >
+            <form className="flex flex-col gap-4" onSubmit={handleSalvarAgendamento}>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Paciente</label>
                 <input 
                   type="text" 
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all" 
                   placeholder="Ex: João da Silva" 
                   required 
@@ -266,7 +308,9 @@ export default function Calendary() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
                   <input 
-                    type="date" 
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all" 
                     required 
                   />
@@ -275,6 +319,8 @@ export default function Calendary() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Horário</label>
                   <input 
                     type="time" 
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all" 
                     required 
                   />
@@ -283,11 +329,15 @@ export default function Calendary() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Especialidade / Serviço</label>
-                <select className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all">
+                <select 
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all"
+                >
                   <option value="">Selecione...</option>
-                  <option value="clinica_geral">Clínica Geral</option>
-                  <option value="cardiologia">Cardiologia</option>
-                  <option value="oftalmologia">Oftalmologia</option>
+                  <option value="Clínica Geral">Clínica Geral</option>
+                  <option value="Cardiologia">Cardiologia</option>
+                  <option value="Oftalmologia">Oftalmologia</option>
                 </select>
               </div>
               
@@ -295,6 +345,8 @@ export default function Calendary() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações (Opcional)</label>
                 <textarea 
                   rows="2"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-[#6BB0C1] focus:border-transparent transition-all resize-none" 
                   placeholder="Alguma nota importante sobre o paciente..."
                 ></textarea>

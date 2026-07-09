@@ -21,13 +21,6 @@ const MENU_GROUPS = [
     items: [
       { path: '/servicos', label: 'Serviços', icon: Briefcase },
       { path: '/clientes', label: 'Clientes', icon: Users },
-      { path: '/relatorios', label: 'Relatórios', icon: FileText },
-    ]
-  },
-  {
-    title: 'Nothing',
-    items: [
-      { path: '/configuracoes', label: 'Configurações', icon: Settings },
     ]
   }
 ];
