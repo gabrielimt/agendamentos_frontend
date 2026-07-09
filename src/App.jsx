@@ -1,7 +1,7 @@
 import './index.css';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import DashboardLayout from './layouts/GeneralLayout';
-import Painel from './layouts/Painel'
+import GeneralLayout from './components/GeneralLayout'
+import Painel from './components/Painel'
 
 const Calendario = () => <h2 className="text-3xl font-bold">Calendário</h2>;
 const Clientes = () => <h2 className="text-3xl font-bold">Gerenciar Clientes</h2>;
@@ -13,7 +13,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<DashboardLayout />}>
+        <Route path="/" element={<GeneralLayout />}>
           
           <Route index element={<Painel />} />
           

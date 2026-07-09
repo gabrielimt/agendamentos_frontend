@@ -52,7 +52,8 @@ const SidebarItem = ({ to, icon: Icon, children }) => {
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-(--principal) h-screen flex flex-col shadow-lg">
+    // Adicionamos 'sticky top-0' na linha abaixo:
+    <aside className="w-64 bg-(--principal) h-screen flex flex-col shadow-lg sticky top-0">
       
       <div className="flex items-center justify-center mb-12 mt-4">
         <h1 className="text-white text-3xl font-bold tracking-wide">
@@ -60,7 +61,8 @@ export default function Sidebar() {
         </h1>
       </div>
       
-      <nav className="flex flex-col gap-8 flex-1">
+      {/* Adicionei 'overflow-y-auto' aqui por precaução */}
+      <nav className="flex flex-col gap-8 flex-1 overflow-y-auto">
         {MENU_GROUPS.map((group, index) => (
           <div key={index}>
             <h3 className="text-white/80 text-sm font-normal mb-3 ml-4">
