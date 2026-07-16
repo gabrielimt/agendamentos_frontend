@@ -1,48 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, FileText, X, AlertCircle } from 'lucide-react';
 
 export default function Clients() {
-  // 1. Dados simulados atualizados para armazenar telefone apenas com números
-  const [patients, setPatients] = useState([
-    {
-      id: 1,
-      name: 'Ana Carolina Silva',
-      cpf: '11122233344',
-      birthDate: '1990-04-15',
-      gender: 'Feminino',
-      phone: '51987654321',
-      lastVisit: '15/06/2026',
-      nextVisit: '10/07/2026',
-    },
-    {
-      id: 2,
-      name: 'Carlos Eduardo Mendes',
-      cpf: '22233344455',
-      birthDate: '1985-11-22',
-      gender: 'Masculino',
-      phone: '51991234567',
-      lastVisit: '02/07/2026',
-      nextVisit: 'A agendar',
-    },
-    {
-      id: 3,
-      name: 'Mariana Souza',
-      cpf: '33344455566',
-      birthDate: '1995-01-08',
-      gender: 'Feminino',
-      phone: '51998887777',
-      lastVisit: '28/05/2026',
-      nextVisit: '12/07/2026',
-    }
-  ]);
-
+  const [patients, setPatients] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState({ type: null, patient: null });
-  
-  // 2. Estado da Busca
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 3. Estado do Formulário
   const [formData, setFormData] = useState({
     name: '',
     cpf: '',
@@ -51,17 +15,37 @@ export default function Clients() {
     phone: '',
   });
 
-  // Funções Auxiliares de Formatação para Exibição
-  const formatCPF = (cpf) => cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  // 1. CARREGAR PACIENTES DO DJANGO
+  useEffect(() => {
+    carregarPacientes();
+  }, []);
+
+  const carregarPacientes = async () => {
+    try {
+      const resposta = await fetch('http://localhost:8000/api/pacientes/');
+      if (resposta.ok) {
+        const dados = await resposta.json();
+        setPatients(dados);
+      }
+    } catch (erro) {
+      console.error("Erro ao buscar pacientes:", erro);
+    }
+  };
+
+  // Funções Auxiliares de Formatação (Com fallback para evitar erros)
+  const formatCPF = (cpf) => {
+    if (!cpf) return '-';
+    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  };
   
   const formatDate = (dateString) => {
-    if (!dateString) return '';
+    if (!dateString) return '-';
     const [year, month, day] = dateString.split('-');
     return `${day}/${month}/${year}`;
   };
 
   const formatPhone = (phone) => {
-    if (!phone) return '';
+    if (!phone) return '-';
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length === 11) {
       return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
@@ -71,16 +55,15 @@ export default function Clients() {
     return cleaned;
   };
 
-  // Filtragem da Busca (Corrigida)
+  // Filtragem da Busca
   const filteredPatients = patients.filter(patient => {
     if (!searchTerm) return true;
 
     const searchLower = searchTerm.toLowerCase();
-    const searchNumbers = searchTerm.replace(/\D/g, ''); // Extrai apenas números
+    const searchNumbers = searchTerm.replace(/\D/g, ''); 
     
-    const matchesName = patient.name.toLowerCase().includes(searchLower);
-    // Só pesquisa no CPF se o termo de busca contiver números
-    const matchesCPF = searchNumbers !== '' ? patient.cpf.includes(searchNumbers) : false;
+    const matchesName = patient.name?.toLowerCase().includes(searchLower) || false;
+    const matchesCPF = (searchNumbers !== '' && patient.cpf) ? patient.cpf.includes(searchNumbers) : false;
 
     return matchesName || matchesCPF;
   });
@@ -89,7 +72,15 @@ export default function Clients() {
     setModalConfig({ type, patient });
     
     if (type === 'edit') {
-      setFormData(patient);
+      // Previne undefined se for um paciente criado direto no calendário (que só tem nome)
+      setFormData({
+        id: patient.id,
+        name: patient.name || '',
+        cpf: patient.cpf || '',
+        birthDate: patient.birthDate || '',
+        gender: patient.gender || 'Feminino',
+        phone: patient.phone || ''
+      });
     } else if (type === 'new') {
       setFormData({ name: '', cpf: '', birthDate: '', gender: 'Feminino', phone: '' });
     }
@@ -105,7 +96,6 @@ export default function Clients() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    // Tratamento para impedir letras tanto no CPF quanto no Telefone
     if (name === 'cpf' || name === 'phone') {
       const onlyNumbers = value.replace(/\D/g, '');
       setFormData(prev => ({ ...prev, [name]: onlyNumbers }));
@@ -114,26 +104,52 @@ export default function Clients() {
     }
   };
 
-  const handleSaveForm = (e) => {
+  // 2. SALVAR NO DJANGO (CRIAR E ATUALIZAR)
+  const handleSaveForm = async (e) => {
     e.preventDefault(); 
 
-    if (modalConfig.type === 'edit') {
-      setPatients(prev => prev.map(p => (p.id === formData.id ? { ...p, ...formData } : p)));
-    } else if (modalConfig.type === 'new') {
-      const newPatient = {
-        ...formData,
-        id: Date.now(),
-        lastVisit: '-',
-        nextVisit: 'A agendar',
-      };
-      setPatients([...patients, newPatient]);
+    const url = modalConfig.type === 'edit' 
+      ? `http://localhost:8000/api/pacientes/${formData.id}/` 
+      : 'http://localhost:8000/api/pacientes/';
+    
+    const metodoHTTP = modalConfig.type === 'edit' ? 'PUT' : 'POST';
+
+    try {
+      const resposta = await fetch(url, {
+        method: metodoHTTP,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (resposta.ok) {
+        carregarPacientes(); // Recarrega a lista com dados atualizados
+        closeModal();
+      } else {
+        alert("Erro ao salvar paciente na API.");
+      }
+    } catch (erro) {
+      console.error("Erro de conexão:", erro);
     }
-    closeModal();
   };
 
-  const handleDeletePatient = () => {
-    setPatients(prev => prev.filter(p => p.id !== modalConfig.patient.id));
-    closeModal();
+  // 3. EXCLUIR DO DJANGO
+  const handleDeletePatient = async () => {
+    try {
+      const resposta = await fetch(`http://localhost:8000/api/pacientes/${modalConfig.patient.id}/`, {
+        method: 'DELETE',
+      });
+
+      if (resposta.ok) {
+        setPatients(prev => prev.filter(p => p.id !== modalConfig.patient.id));
+        closeModal();
+      } else {
+        alert("Erro ao tentar excluir na API.");
+      }
+    } catch (erro) {
+      console.error("Erro ao excluir:", erro);
+    }
   };
 
   const renderModalContent = () => {
@@ -166,12 +182,8 @@ export default function Clients() {
                   value={formData.cpf}
                   onChange={handleInputChange}
                   maxLength="11"
-                  minLength="11"
-                  pattern="\d{11}"
-                  title="O CPF deve conter exatamente 11 números"
                   placeholder="00000000000" 
                   className="w-full p-2 border border-slate-200 rounded-lg text-sm" 
-                  required
                 />
               </div>
               <div>
@@ -182,7 +194,6 @@ export default function Clients() {
                   value={formData.birthDate}
                   onChange={handleInputChange}
                   className="w-full p-2 border border-slate-200 rounded-lg text-sm" 
-                  required
                 />
               </div>
             </div>
@@ -194,7 +205,6 @@ export default function Clients() {
                   value={formData.gender}
                   onChange={handleInputChange}
                   className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" 
-                  required
                 >
                   <option value="Feminino">Feminino</option>
                   <option value="Masculino">Masculino</option>
@@ -208,10 +218,8 @@ export default function Clients() {
                   value={formData.phone}
                   onChange={handleInputChange}
                   maxLength="11"
-                  minLength="10"
                   placeholder="51900000000" 
                   className="w-full p-2 border border-slate-200 rounded-lg text-sm" 
-                  required
                 />
               </div>
             </div>
@@ -249,7 +257,7 @@ export default function Clients() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">Gênero</p>
-                  <p className="font-medium text-slate-800">{patient.gender}</p>
+                  <p className="font-medium text-slate-800">{patient.gender || '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-slate-500">Telefone</p>
@@ -310,8 +318,6 @@ export default function Clients() {
             <tr>
               <th className="p-4">Nome / CPF</th>
               <th className="p-4">Contato</th>
-              <th className="p-4">Última Consulta</th>
-              <th className="p-4">Próxima</th>
               <th className="p-4 text-center">Ações</th>
             </tr>
           </thead>
@@ -324,8 +330,6 @@ export default function Clients() {
                     <div className="text-xs text-slate-400">CPF: {formatCPF(p.cpf)}</div>
                   </td>
                   <td className="p-4 text-sm text-slate-600">{formatPhone(p.phone)}</td>
-                  <td className="p-4 text-sm text-slate-600">{p.lastVisit}</td>
-                  <td className="p-4 text-sm font-medium">{p.nextVisit}</td>
                   <td className="p-4 flex justify-center gap-2">
                     <button onClick={() => openModal('prontuario', p)} className="p-2 text-slate-400 hover:text-[#6BB0C1]" title="Prontuário"><FileText size={18} /></button>
                     <button onClick={() => openModal('edit', p)} className="p-2 text-slate-400 hover:text-slate-800" title="Editar"><Edit size={18} /></button>
