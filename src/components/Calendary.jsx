@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Clock, X, Trash2 } from 'lucide-react';
 import { 
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, 
   format, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, 
@@ -15,16 +15,59 @@ export default function Calendary() {
   // Estado reservado para os dados da sua API
   const [appointments, setAppointments] = useState([]); 
 
-  // --- NOVOS ESTADOS PARA O FORMULÁRIO ---
+  // --- ESTADOS DO FORMULÁRIO E DE CONTROLE ---
+  const [editingId, setEditingId] = useState(null); // Guarda o ID do agendamento sendo editado
   const [patientName, setPatientName] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [service, setService] = useState('');
   const [notes, setNotes] = useState('');
 
-  // --- FUNÇÃO PARA SALVAR NO BANCO ---
+  // --- FUNÇÃO PARA CARREGAR OS DADOS DO BANCO (GET) ---
+  useEffect(() => {
+    const carregarAgendamentos = async () => {
+      try {
+        const resposta = await fetch('http://localhost:8000/api/calendario/');
+        if (resposta.ok) {
+          const dados = await resposta.json();
+          setAppointments(dados);
+        }
+      } catch (erro) {
+        console.error("Erro ao buscar agendamentos:", erro);
+      }
+    };
+    carregarAgendamentos();
+  }, []);
+
+  // --- FUNÇÕES DE CONTROLE DO MODAL ---
+  const abrirModalNovo = () => {
+    setEditingId(null);
+    setPatientName('');
+    setDate('');
+    setTime('');
+    setService('');
+    setNotes('');
+    setIsModalOpen(true);
+  };
+
+  const abrirModalEdicao = (agendamento) => {
+    setEditingId(agendamento.id);
+    setPatientName(agendamento.patientName);
+    setDate(agendamento.date);
+    setTime(agendamento.time.substring(0, 5)); // Pega só o HH:MM, ignorando os segundos do banco se houver
+    setService(agendamento.service);
+    setNotes(agendamento.notes || '');
+    setIsModalOpen(true);
+  };
+
+  const fecharModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+  };
+
+  // --- FUNÇÃO PARA SALVAR (POST OU PUT) ---
   const handleSalvarAgendamento = async (e) => {
-    e.preventDefault(); // Evita que a página recarregue
+    e.preventDefault(); 
 
     const dadosParaEnvio = {
       patientName,
@@ -34,9 +77,16 @@ export default function Calendary() {
       notes
     };
 
+    // Se tem editingId faz PUT na nova rota, senão faz POST na rota antiga
+    const url = editingId 
+      ? `http://localhost:8000/api/calendario/${editingId}/` 
+      : 'http://localhost:8000/api/calendario/';
+    
+    const metodoHTTP = editingId ? 'PUT' : 'POST';
+
     try {
-      const resposta = await fetch('http://localhost:8000/api/calendario/', {
-        method: 'POST',
+      const resposta = await fetch(url, {
+        method: metodoHTTP,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -44,20 +94,46 @@ export default function Calendary() {
       });
 
       if (resposta.ok) {
-        alert("Agendamento salvo com sucesso no banco do Django!");
-        setIsModalOpen(false); // Fecha o modal
+        const agendamentoSalvo = await resposta.json();
         
-        // Limpa os campos para o próximo cadastro
-        setPatientName('');
-        setDate('');
-        setTime('');
-        setService('');
-        setNotes('');
+        if (editingId) {
+          // Atualiza o item editado na lista
+          setAppointments(prev => prev.map(item => item.id === editingId ? agendamentoSalvo : item));
+          alert("Agendamento atualizado com sucesso!");
+        } else {
+          // Adiciona o item novo na lista
+          setAppointments(prev => [...prev, agendamentoSalvo]);
+          alert("Agendamento criado com sucesso!");
+        }
+        
+        fecharModal();
       } else {
         alert("Erro ao salvar o agendamento na API.");
       }
     } catch (erro) {
       console.error("Erro de conexão com o backend:", erro);
+    }
+  };
+
+  // --- FUNÇÃO PARA DELETAR (DELETE) ---
+  const handleExcluirAgendamento = async () => {
+    if (!window.confirm("Tem certeza que deseja cancelar e excluir este agendamento?")) return;
+
+    try {
+      const resposta = await fetch(`http://localhost:8000/api/calendario/${editingId}/`, {
+        method: 'DELETE',
+      });
+
+      if (resposta.ok) {
+        // Remove da tela o agendamento que foi deletado
+        setAppointments(prev => prev.filter(item => item.id !== editingId));
+        alert("Agendamento excluído com sucesso!");
+        fecharModal();
+      } else {
+        alert("Erro ao tentar excluir na API.");
+      }
+    } catch (erro) {
+      console.error("Erro ao excluir:", erro);
     }
   };
 
@@ -116,7 +192,20 @@ export default function Calendary() {
                   {format(dayDate, 'd')}
                 </span>
                 
-                {/* Lógica futura para renderizar agendamentos que caem neste dia */}
+                <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                  {appointments
+                    .filter(agendamento => agendamento.date === format(dayDate, 'yyyy-MM-dd'))
+                    .map(agendamento => (
+                      <div 
+                        key={agendamento.id} 
+                        onClick={() => abrirModalEdicao(agendamento)}
+                        className="text-xs bg-[#6BB0C1]/20 text-[#102B4E] p-1.5 rounded truncate font-medium border border-[#6BB0C1]/30 cursor-pointer hover:bg-[#6BB0C1]/40 transition-colors"
+                        title={`${agendamento.time} - ${agendamento.patientName} (${agendamento.service})`}
+                      >
+                        {agendamento.time.substring(0, 5)} - {agendamento.patientName}
+                      </div>
+                  ))}
+                </div>
               </div>
             );
           })}
@@ -144,8 +233,21 @@ export default function Calendary() {
         </div>
         <div className="grid grid-cols-7 gap-[1px] bg-gray-100 flex-1 min-h-[400px]">
            {weekDays.map((day, index) => (
-            <div key={index} className="bg-white p-2">
-               {/* Lógica futura para renderizar agendamentos da semana */}
+            <div key={index} className="bg-white p-2 min-h-[100px]">
+              <div className="flex flex-col gap-1 overflow-y-auto max-h-full custom-scrollbar">
+                {appointments
+                  .filter(agendamento => agendamento.date === format(day, 'yyyy-MM-dd'))
+                  .map(agendamento => (
+                    <div 
+                      key={agendamento.id} 
+                      onClick={() => abrirModalEdicao(agendamento)}
+                      className="text-sm bg-[#6BB0C1]/20 text-[#102B4E] p-1.5 rounded truncate font-medium border border-[#6BB0C1]/30 cursor-pointer hover:bg-[#6BB0C1]/40 transition-colors"
+                      title={`${agendamento.time} - ${agendamento.patientName} (${agendamento.service})`}
+                    >
+                      <span className="font-bold">{agendamento.time.substring(0, 5)}</span> - {agendamento.patientName}
+                    </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
@@ -154,7 +256,7 @@ export default function Calendary() {
   };
 
   const renderDayView = () => {
-    const hours = Array.from({ length: 10 }, (_, i) => i + 8); 
+    const hours = Array.from({ length: 24 }, (_, i) => i); 
 
     return (
       <div className="bg-white p-6 h-full overflow-y-auto">
@@ -168,7 +270,25 @@ export default function Calendary() {
                 {hour}:00
               </div>
               <div className="flex-1 p-2 hover:bg-gray-50 transition-colors">
-                 {/* Lógica futura para renderizar agendamentos deste horário */}
+                 <div className="flex flex-col gap-1">
+                  {appointments
+                    .filter(agendamento => {
+                      const dataCorreta = agendamento.date === format(currentDate, 'yyyy-MM-dd');
+                      const horaFormatada = hour.toString().padStart(2, '0'); 
+                      const horaCorreta = agendamento.time.startsWith(`${horaFormatada}:`);
+                      return dataCorreta && horaCorreta;
+                    })
+                    .map(agendamento => (
+                      <div 
+                        key={agendamento.id} 
+                        onClick={() => abrirModalEdicao(agendamento)}
+                        className="text-sm bg-[#6BB0C1]/20 text-[#102B4E] p-2 rounded truncate font-medium border border-[#6BB0C1]/30 cursor-pointer hover:bg-[#6BB0C1]/40 transition-colors"
+                        title={`${agendamento.time} - ${agendamento.patientName} (${agendamento.service})`}
+                      >
+                        <span className="font-bold">{agendamento.time.substring(0, 5)}</span> - {agendamento.patientName} ({agendamento.service})
+                      </div>
+                  ))}
+                 </div>
               </div>
             </div>
           ))}
@@ -195,11 +315,16 @@ export default function Calendary() {
                     <Clock size={24} />
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 text-lg">{item.time} - {item.service}</p>
+                    <p className="font-bold text-slate-800 text-lg">{item.time.substring(0, 5)} - {item.service}</p>
                     <p className="text-slate-500 capitalize">{format(new Date(item.date), "EEEE, d 'de' MMMM", { locale: ptBR })}</p>
                   </div>
                 </div>
-                <button className="text-[#6BB0C1] font-medium hover:underline">Ver Detalhes</button>
+                <button 
+                  onClick={() => abrirModalEdicao(item)}
+                  className="text-[#6BB0C1] font-medium hover:underline"
+                >
+                  Ver / Editar
+                </button>
               </div>
             ))
           )}
@@ -214,7 +339,7 @@ export default function Calendary() {
       <div className="flex justify-between items-center mb-6 shrink-0">
         <h2 className="text-3xl font-bold text-[#102B4E]">Calendário</h2>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={abrirModalNovo}
           className="bg-[#6BB0C1] border border-transparent rounded-lg px-5 py-2.5 font-medium text-white hover:bg-[#5a98a8] transition-colors shadow-sm"
         >
           + Novo Agendamento
@@ -282,9 +407,11 @@ export default function Calendary() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-xl font-bold text-[#102B4E]">Novo Agendamento</h3>
+              <h3 className="text-xl font-bold text-[#102B4E]">
+                {editingId ? 'Editar Agendamento' : 'Novo Agendamento'}
+              </h3>
               <button 
-                onClick={() => setIsModalOpen(false)} 
+                onClick={fecharModal} 
                 className="text-gray-400 hover:text-gray-700 transition-colors p-1"
               >
                 <X size={24} />
@@ -352,20 +479,35 @@ export default function Calendary() {
                 ></textarea>
               </div>
 
-              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)} 
-                  className="px-4 py-2 font-medium text-slate-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-4 py-2 font-medium text-white bg-[#6BB0C1] rounded-lg hover:bg-[#5a98a8] transition-colors"
-                >
-                  Salvar Agendamento
-                </button>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                {/* Botão de excluir só aparece se estiver editando */}
+                {editingId ? (
+                  <button 
+                    type="button" 
+                    onClick={handleExcluirAgendamento}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 size={16} /> Excluir
+                  </button>
+                ) : (
+                  <div></div> /* Div vazia para manter o layout flex-between */
+                )}
+
+                <div className="flex gap-3">
+                  <button 
+                    type="button" 
+                    onClick={fecharModal} 
+                    className="px-4 py-2 font-medium text-slate-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="px-4 py-2 font-medium text-white bg-[#6BB0C1] rounded-lg hover:bg-[#5a98a8] transition-colors"
+                  >
+                    {editingId ? 'Salvar Alterações' : 'Salvar Agendamento'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
